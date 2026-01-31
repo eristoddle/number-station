@@ -24,6 +24,9 @@ from src.ui.stream_mode import render_stream_mode
 from src.ui.board_mode import render_board_mode
 from src.ui.settings import render_settings_page
 from src.ui.components import render_sidebar_status
+from src.ui.collections import render_collections_page
+from src.ui.scheduled_posts import render_scheduled_posts_page
+from src.ui.modals import render_modals
 
 # Initialize core systems (cached)
 @st.cache_resource
@@ -57,6 +60,9 @@ def main():
         st.error(f"Critical System Error: {e}")
         return
 
+    # Render Modals (if any active)
+    render_modals(plugin_manager)
+
     # Session State for Mode
     if 'ui_mode' not in st.session_state:
         # Load from user prefs
@@ -81,10 +87,7 @@ def main():
         st.header("Navigation")
 
         # View Selection
-        view_tabs = ["Stream", "Board", "Settings"]
-        # Determine current index based on session state or URL?
-        # Streamlit radio doesn't easily 'sync' with my ui_mode if I change it elsewhere.
-        # But here it's the primary driver.
+        view_tabs = ["Stream", "Board", "Collections", "Scheduled", "Settings"]
         current_view = st.session_state.get('current_view', "Stream")
         view = st.radio(
             "Go to",
@@ -120,6 +123,10 @@ def main():
         render_stream_mode(db)
     elif view == "Board":
         render_board_mode(db)
+    elif view == "Collections":
+        render_collections_page(db, plugin_manager)
+    elif view == "Scheduled":
+        render_scheduled_posts_page(db, plugin_manager)
     elif view == "Settings":
         render_settings_page(db, plugin_manager)
     else:

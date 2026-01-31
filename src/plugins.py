@@ -25,7 +25,10 @@ import inspect
 from pathlib import Path
 import json
 
-from .models import ContentItem, PluginMetadata
+from .models import (
+    ContentItem, PluginMetadata, ShareableContent, PostResult,
+    ValidationResult, DestinationCapabilities
+)
 
 
 class PluginValidationError(Exception):
@@ -500,6 +503,34 @@ class AIPlugin(ABC):
         """Apply AI transformations to a single item (e.g. summarization)."""
         pass
 
+    @abstractmethod
+    def generate_text(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Generate text using AI model.
+
+        Args:
+            prompt: Text prompt for generation
+            context: Optional context information
+
+        Returns:
+            str: Generated text
+        """
+        pass
+
+    @abstractmethod
+    def summarize_items(self, items: List[ContentItem], style: str = "concise") -> str:
+        """
+        Summarize multiple items into a single text.
+
+        Args:
+            items: List of content items to summarize
+            style: Summary style (concise, detailed, etc.)
+
+        Returns:
+            str: Summarized text
+        """
+        pass
+
     def initialize(self) -> bool: return True
     def start(self) -> bool: return True
     def stop(self) -> bool: return True
@@ -540,6 +571,137 @@ class ServicePlugin(ABC):
     def config(self) -> Dict[str, Any]: return self._config.copy()
     @property
     def enabled(self) -> bool: return self._enabled
+
+class DestinationPlugin(ABC):
+    """
+    Abstract base class for destination plugins.
+
+    Destination plugins are responsible for posting content to external platforms
+    (Twitter, LinkedIn, Mastodon, etc.).
+
+    Validates Requirements 8.1, 8.2, 8.3, 8.4, 8.5:
+    - Standardized plugin API for destinations
+    - Content posting and validation
+    - Capability reporting
+    - Native reshare support
+    """
+
+    def __init__(self):
+        """Initialize the destination plugin."""
+        self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
+        self._config: Dict[str, Any] = {}
+        self._enabled: bool = True
+
+    @property
+    @abstractmethod
+    def metadata(self) -> PluginMetadata:
+        """Return plugin metadata."""
+        pass
+
+    @abstractmethod
+    def validate_config(self, config: Dict[str, Any]) -> bool:
+        """Validate plugin configuration."""
+        pass
+
+    @abstractmethod
+    def configure(self, config: Dict[str, Any]) -> bool:
+        """Configure the plugin."""
+        pass
+
+    @abstractmethod
+    def post_content(self, content: ShareableContent) -> PostResult:
+        """
+        Post content to the destination.
+
+        Args:
+            content: Content to post
+
+        Returns:
+            PostResult: Result of the posting operation
+        """
+        pass
+
+    @abstractmethod
+    def validate_content(self, content: ShareableContent) -> ValidationResult:
+        """
+        Validate content against destination limits.
+
+        Args:
+            content: Content to validate
+
+        Returns:
+            ValidationResult: Validation details
+        """
+        pass
+
+    @abstractmethod
+    def get_capabilities(self) -> DestinationCapabilities:
+        """
+        Return destination capabilities (length limits, media support, etc.).
+
+        Returns:
+            DestinationCapabilities: Description of what this destination supports
+        """
+        pass
+
+    @abstractmethod
+    def supports_reshare(self, source_type: str) -> bool:
+        """
+        Check if destination supports native reshare for a source type.
+
+        Args:
+            source_type: Type of the original content source
+
+        Returns:
+            bool: True if native reshare is supported
+        """
+        pass
+
+    @abstractmethod
+    def reshare(self, content_item: ContentItem) -> PostResult:
+        """
+        Perform native reshare (e.g., Retweet).
+
+        Args:
+            content_item: Original content item to reshare
+
+        Returns:
+            PostResult: Result of the reshare operation
+        """
+        pass
+
+    def initialize(self) -> bool:
+        """Initialize the plugin."""
+        self.logger.info(f"Initializing destination plugin {self.metadata.name}")
+        return True
+
+    def start(self) -> bool:
+        """Start the plugin."""
+        self.logger.info(f"Starting destination plugin {self.metadata.name}")
+        self._enabled = True
+        return True
+
+    def stop(self) -> bool:
+        """Stop the plugin."""
+        self.logger.info(f"Stopping destination plugin {self.metadata.name}")
+        self._enabled = False
+        return True
+
+    def cleanup(self) -> bool:
+        """Clean up plugin resources."""
+        self.logger.info(f"Cleaning up destination plugin {self.metadata.name}")
+        return True
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        """Get current plugin configuration."""
+        return self._config.copy()
+
+    @property
+    def enabled(self) -> bool:
+        """Check if plugin is enabled."""
+        return self._enabled
+
 
 class PluginRegistry:
     """
@@ -630,7 +792,8 @@ class PluginRegistry:
                 issubclass(obj, FilterPlugin) or
                 issubclass(obj, ThemePlugin) or
                 issubclass(obj, AIPlugin) or
-                issubclass(obj, ServicePlugin)) and obj not in [SourcePlugin, FilterPlugin, ThemePlugin, AIPlugin, ServicePlugin]:
+                issubclass(obj, ServicePlugin) or
+                issubclass(obj, DestinationPlugin)) and obj not in [SourcePlugin, FilterPlugin, ThemePlugin, AIPlugin, ServicePlugin, DestinationPlugin]:
                 plugin_classes.append(obj)
 
         return plugin_classes
@@ -676,7 +839,8 @@ class PluginRegistry:
                 issubclass(plugin_class, FilterPlugin) or
                 issubclass(plugin_class, ThemePlugin) or
                 issubclass(plugin_class, AIPlugin) or
-                issubclass(plugin_class, ServicePlugin)):
+                issubclass(plugin_class, ServicePlugin) or
+                issubclass(plugin_class, DestinationPlugin)):
             return False
 
         # Check required methods are implemented
@@ -689,7 +853,9 @@ class PluginRegistry:
         elif issubclass(plugin_class, ThemePlugin):
             required_methods.extend(['apply_theme', 'get_css', 'supports_mode'])
         elif issubclass(plugin_class, AIPlugin):
-            required_methods.extend(['rank_items', 'process_item'])
+            required_methods.extend(['rank_items', 'process_item', 'generate_text', 'summarize_items'])
+        elif issubclass(plugin_class, DestinationPlugin):
+            required_methods.extend(['post_content', 'validate_content', 'get_capabilities', 'supports_reshare', 'reshare'])
 
         for method_name in required_methods:
             if not hasattr(plugin_class, method_name):
@@ -773,7 +939,7 @@ class PluginRegistry:
             bool: True if compatible, False otherwise
         """
         # Check plugin type is valid
-        valid_types = ['source', 'filter', 'theme', 'ai', 'service']
+        valid_types = ['source', 'filter', 'theme', 'ai', 'service', 'destination']
         if metadata.plugin_type not in valid_types:
             self.logger.error(f"Invalid plugin type: {metadata.plugin_type}")
             return False

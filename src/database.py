@@ -14,7 +14,11 @@ from datetime import datetime
 import json
 from contextlib import contextmanager
 
-from .models import ContentItem, UserPreferences, PluginMetadata, SourceConfiguration, SourceMetadata
+from .models import (
+    ContentItem, UserPreferences, PluginMetadata,
+    SourceConfiguration, SourceMetadata, ScheduledPost,
+    ContentCollection, MarkdownTemplate
+)
 
 
 class DatabaseManager:
@@ -130,12 +134,55 @@ class DatabaseManager:
                 )
             """)
 
+            # Create scheduled_posts table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS scheduled_posts (
+                    id TEXT PRIMARY KEY,
+                    destination_plugin TEXT NOT NULL,
+                    content TEXT NOT NULL, -- JSON object (ShareableContent)
+                    scheduled_time DATETIME NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    retry_count INTEGER DEFAULT 0,
+                    last_error TEXT,
+                    result_url TEXT,
+                    recurrence TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Create content_collections table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS content_collections (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    item_ids TEXT, -- JSON array
+                    metadata TEXT, -- JSON object
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Create markdown_templates table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS markdown_templates (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    is_default BOOLEAN DEFAULT FALSE,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # Create indexes for better performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_content_timestamp ON content_items(timestamp)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_content_source ON content_items(source)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_content_source_type ON content_items(source_type)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_plugin_type ON plugin_metadata(plugin_type)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_source_type ON source_configurations(source_type)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_status ON scheduled_posts(status)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_time ON scheduled_posts(scheduled_time)")
 
             conn.commit()
             self.logger.info("Database schema initialized successfully")
@@ -702,8 +749,11 @@ class DatabaseManager:
                 cursor = conn.cursor()
 
                 stats = {}
-                tables = ['content_items', 'plugin_configs', 'user_preferences',
-                         'source_configurations', 'plugin_metadata']
+                tables = [
+                    'content_items', 'plugin_configs', 'user_preferences',
+                    'source_configurations', 'plugin_metadata', 'scheduled_posts',
+                    'content_collections', 'markdown_templates'
+                ]
 
                 for table in tables:
                     cursor.execute(f"SELECT COUNT(*) FROM {table}")
@@ -713,6 +763,207 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Error getting database stats: {e}")
             return {}
+
+    # ScheduledPost operations
+
+    def save_scheduled_post(self, post: ScheduledPost) -> bool:
+        """Save a scheduled post to the database."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                data = post.to_dict()
+
+                cursor.execute("""
+                    INSERT OR REPLACE INTO scheduled_posts
+                    (id, destination_plugin, content, scheduled_time, status, retry_count,
+                     last_error, result_url, recurrence, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    data['id'], data['destination_plugin'], data['content'],
+                    data['scheduled_time'], data['status'], data['retry_count'],
+                    data['last_error'], data['result_url'], data['recurrence'],
+                    data['created_at']
+                ))
+
+                conn.commit()
+                return True
+        except Exception as e:
+            self.logger.error(f"Error saving scheduled post {post.id}: {e}")
+            return False
+
+    def get_scheduled_post(self, post_id: str) -> Optional[ScheduledPost]:
+        """Retrieve a scheduled post by ID."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM scheduled_posts WHERE id = ?", (post_id,))
+                row = cursor.fetchone()
+                if row:
+                    return ScheduledPost.from_dict(dict(row))
+                return None
+        except Exception as e:
+            self.logger.error(f"Error retrieving scheduled post {post_id}: {e}")
+            return None
+
+    def get_scheduled_posts(self, status: Optional[str] = None, limit: int = 100) -> List[ScheduledPost]:
+        """Retrieve scheduled posts, optionally filtered by status."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                if status:
+                    cursor.execute(
+                        "SELECT * FROM scheduled_posts WHERE status = ? ORDER BY scheduled_time ASC LIMIT ?",
+                        (status, limit)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT * FROM scheduled_posts ORDER BY scheduled_time ASC LIMIT ?",
+                        (limit,)
+                    )
+
+                rows = cursor.fetchall()
+                return [ScheduledPost.from_dict(dict(row)) for row in rows]
+        except Exception as e:
+            self.logger.error(f"Error retrieving scheduled posts: {e}")
+            return []
+
+    def delete_scheduled_post(self, post_id: str) -> bool:
+        """Delete a scheduled post."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM scheduled_posts WHERE id = ?", (post_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error deleting scheduled post {post_id}: {e}")
+            return False
+
+    # ContentCollection operations
+
+    def save_content_collection(self, collection: ContentCollection) -> bool:
+        """Save a content collection to the database."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                data = collection.to_dict()
+
+                cursor.execute("""
+                    INSERT OR REPLACE INTO content_collections
+                    (id, name, description, item_ids, metadata, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    data['id'], data['name'], data['description'],
+                    data['item_ids'], data['metadata'], data['created_at']
+                ))
+
+                conn.commit()
+                return True
+        except Exception as e:
+            self.logger.error(f"Error saving collection {collection.id}: {e}")
+            return False
+
+    def get_content_collection(self, collection_id: str) -> Optional[ContentCollection]:
+        """Retrieve a content collection by ID."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM content_collections WHERE id = ?", (collection_id,))
+                row = cursor.fetchone()
+                if row:
+                    return ContentCollection.from_dict(dict(row))
+                return None
+        except Exception as e:
+            self.logger.error(f"Error retrieving collection {collection_id}: {e}")
+            return None
+
+    def get_content_collections(self) -> List[ContentCollection]:
+        """Retrieve all content collections."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM content_collections ORDER BY name ASC")
+                rows = cursor.fetchall()
+                return [ContentCollection.from_dict(dict(row)) for row in rows]
+        except Exception as e:
+            self.logger.error(f"Error retrieving collections: {e}")
+            return []
+
+    def delete_content_collection(self, collection_id: str) -> bool:
+        """Delete a content collection."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM content_collections WHERE id = ?", (collection_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error deleting collection {collection_id}: {e}")
+            return False
+
+    # MarkdownTemplate operations
+
+    def save_markdown_template(self, template: MarkdownTemplate) -> bool:
+        """Save a markdown template to the database."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # If this is the new default, unset other defaults
+                if template.is_default:
+                    cursor.execute("UPDATE markdown_templates SET is_default = FALSE")
+
+                cursor.execute("""
+                    INSERT OR REPLACE INTO markdown_templates
+                    (id, name, content, is_default, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    template.id, template.name, template.content, template.is_default
+                ))
+
+                conn.commit()
+                return True
+        except Exception as e:
+            self.logger.error(f"Error saving template {template.id}: {e}")
+            return False
+
+    def get_markdown_template(self, template_id: str) -> Optional[MarkdownTemplate]:
+        """Retrieve a markdown template by ID."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM markdown_templates WHERE id = ?", (template_id,))
+                row = cursor.fetchone()
+                if row:
+                    return MarkdownTemplate(
+                        id=row['id'],
+                        name=row['name'],
+                        content=row['content'],
+                        is_default=bool(row['is_default'])
+                    )
+                return None
+        except Exception as e:
+            self.logger.error(f"Error retrieving template {template_id}: {e}")
+            return None
+
+    def get_markdown_templates(self) -> List[MarkdownTemplate]:
+        """Retrieve all markdown templates."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM markdown_templates ORDER BY name ASC")
+                rows = cursor.fetchall()
+                return [
+                    MarkdownTemplate(
+                        id=row['id'],
+                        name=row['name'],
+                        content=row['content'],
+                        is_default=bool(row['is_default'])
+                    ) for row in rows
+                ]
+        except Exception as e:
+            self.logger.error(f"Error retrieving templates: {e}")
+            return []
 
 
 # Global database instance

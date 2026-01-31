@@ -329,3 +329,152 @@ class SourceMetadata:
             consecutive_errors=data.get('consecutive_errors', 0),
             last_error=data.get('last_error')
         )
+
+
+@dataclass
+class ShareableContent:
+    """Represents content to be shared to a destination."""
+    content_item: Optional[ContentItem] = None
+    text: str = ""
+    media_urls: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PostResult:
+    """Result of a posting operation."""
+    success: bool
+    post_id: Optional[str] = None
+    url: Optional[str] = None
+    error: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ValidationResult:
+    """Result of a content validation operation."""
+    valid: bool
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    recommended_text: Optional[str] = None
+
+
+@dataclass
+class DestinationCapabilities:
+    """Capabilities of a destination plugin."""
+    max_length: int
+    supports_media: bool
+    supported_media_types: List[str] = field(default_factory=list)
+    supports_reshare: bool = False
+    name: str = ""
+
+
+@dataclass
+class ScheduledPost:
+    """Represents a post scheduled for the future."""
+    id: str
+    destination_plugin: str
+    content: ShareableContent
+    scheduled_time: datetime
+    status: str = "pending"  # pending, scheduled, executing, success, failed, cancelled
+    retry_count: int = 0
+    last_error: Optional[str] = None
+    result_url: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    recurrence: Optional[str] = None  # daily, weekly, None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'destination_plugin': self.destination_plugin,
+            'content': json.dumps({
+                'content_item_id': self.content.content_item.id if self.content.content_item else None,
+                'text': self.content.text,
+                'media_urls': self.content.media_urls,
+                'metadata': self.content.metadata
+            }),
+            'scheduled_time': self.scheduled_time.isoformat(),
+            'status': self.status,
+            'retry_count': self.retry_count,
+            'last_error': self.last_error,
+            'result_url': self.result_url,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'recurrence': self.recurrence
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ScheduledPost':
+        content_data = json.loads(data['content']) if isinstance(data['content'], str) else data['content']
+        content = ShareableContent(
+            text=content_data.get('text', ""),
+            media_urls=content_data.get('media_urls', []),
+            metadata=content_data.get('metadata', {})
+        )
+
+        return cls(
+            id=data['id'],
+            destination_plugin=data['destination_plugin'],
+            content=content,
+            scheduled_time=datetime.fromisoformat(data['scheduled_time']),
+            status=data['status'],
+            retry_count=data.get('retry_count', 0),
+            last_error=data.get('last_error'),
+            result_url=data.get('result_url'),
+            created_at=datetime.fromisoformat(data['created_at']),
+            updated_at=datetime.fromisoformat(data['updated_at']),
+            recurrence=data.get('recurrence')
+        )
+
+
+@dataclass
+class ContentCollection:
+    """Represents a curated collection of content items."""
+    id: str
+    name: str
+    description: str = ""
+    item_ids: List[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'item_ids': json.dumps(self.item_ids),
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'metadata': json.dumps(self.metadata)
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ContentCollection':
+        item_ids = data.get('item_ids', '[]')
+        if isinstance(item_ids, str):
+            item_ids = json.loads(item_ids)
+
+        metadata = data.get('metadata', '{}')
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+
+        return cls(
+            id=data['id'],
+            name=data['name'],
+            description=data.get('description', ""),
+            item_ids=item_ids,
+            created_at=datetime.fromisoformat(data['created_at']),
+            updated_at=datetime.fromisoformat(data['updated_at']),
+            metadata=metadata
+        )
+
+
+@dataclass
+class MarkdownTemplate:
+    """Represents a JINA2 template for markdown generation."""
+    id: str
+    name: str
+    content: str
+    is_default: bool = False

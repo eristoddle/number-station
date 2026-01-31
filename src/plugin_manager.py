@@ -20,7 +20,11 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 import traceback
 
-from .plugins import PluginRegistry, SourcePlugin, FilterPlugin, ThemePlugin, PluginValidationError, PluginCompatibilityError
+from .plugins import (
+    PluginRegistry, SourcePlugin, FilterPlugin, ThemePlugin,
+    AIPlugin, ServicePlugin, DestinationPlugin,
+    PluginValidationError, PluginCompatibilityError
+)
 from .models import PluginMetadata
 from .database import DatabaseManager
 
@@ -131,6 +135,10 @@ class PluginManager:
                 # Save configuration if provided
                 if config:
                     self.db.save_plugin_config(plugin_name, config, True)
+
+                # Inject plugin manager if supported
+                if hasattr(plugin_instance, 'set_plugin_manager'):
+                    plugin_instance.set_plugin_manager(self)
 
             self.logger.info(f"Loaded plugin: {plugin_name}")
             return True
@@ -362,6 +370,24 @@ class PluginManager:
             List of enabled ServicePlugin instances
         """
         return self.registry.get_plugins_by_type('service')
+
+    def get_ai_plugins(self) -> List[AIPlugin]:
+        """
+        Get all enabled AI plugins.
+
+        Returns:
+            List of enabled AIPlugin instances
+        """
+        return self.registry.get_plugins_by_type('ai')
+
+    def get_destination_plugins(self) -> List[DestinationPlugin]:
+        """
+        Get all enabled destination plugins.
+
+        Returns:
+            List of enabled DestinationPlugin instances
+        """
+        return self.registry.get_plugins_by_type('destination')
 
     def get_plugin_status(self) -> Dict[str, Dict[str, Any]]:
         """
