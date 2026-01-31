@@ -268,3 +268,52 @@ class SourceConfiguration:
             tags=tags,
             config=config
         )
+
+
+@dataclass
+class SourceMetadata:
+    """
+    Runtime metadata and statistics for content sources.
+
+    Tracks update history, success rates, and item counts (Requirement 3.6, 5.4).
+    """
+
+    source_id: str # Links to SourceConfiguration.name (or ID?)
+    last_fetch_attempt: datetime
+    last_fetch_success: Optional[datetime]
+    last_item_count: int
+    total_items_fetched: int
+    error_count: int
+    consecutive_errors: int
+    last_error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'source_id': self.source_id,
+            'last_fetch_attempt': self.last_fetch_attempt.isoformat(),
+            'last_fetch_success': self.last_fetch_success.isoformat() if self.last_fetch_success else None,
+            'last_item_count': self.last_item_count,
+            'total_items_fetched': self.total_items_fetched,
+            'error_count': self.error_count,
+            'consecutive_errors': self.consecutive_errors,
+            'last_error': self.last_error
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SourceMetadata':
+        last_fetch_attempt = datetime.fromisoformat(data['last_fetch_attempt'])
+
+        last_fetch_success = None
+        if data.get('last_fetch_success'):
+             last_fetch_success = datetime.fromisoformat(data['last_fetch_success'])
+
+        return cls(
+            source_id=data['source_id'],
+            last_fetch_attempt=last_fetch_attempt,
+            last_fetch_success=last_fetch_success,
+            last_item_count=data.get('last_item_count', 0),
+            total_items_fetched=data.get('total_items_fetched', 0),
+            error_count=data.get('error_count', 0),
+            consecutive_errors=data.get('consecutive_errors', 0),
+            last_error=data.get('last_error')
+        )

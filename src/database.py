@@ -14,7 +14,7 @@ from datetime import datetime
 import json
 from contextlib import contextmanager
 
-from .models import ContentItem, UserPreferences, PluginMetadata, SourceConfiguration
+from .models import ContentItem, UserPreferences, PluginMetadata, SourceConfiguration, SourceMetadata
 
 
 class DatabaseManager:
@@ -109,6 +109,21 @@ class DatabaseManager:
                     capabilities TEXT, -- JSON array
                     config_schema TEXT, -- JSON object
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Create source_metadata table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS source_metadata (
+                    source_id TEXT PRIMARY KEY,
+                    last_fetch_attempt DATETIME NOT NULL,
+                    last_fetch_success DATETIME,
+                    last_item_count INTEGER DEFAULT 0,
+                    total_items_fetched INTEGER DEFAULT 0,
+                    error_count INTEGER DEFAULT 0,
+                    consecutive_errors INTEGER DEFAULT 0,
+                    last_error TEXT,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -506,6 +521,63 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Error deleting source config {name}: {e}")
             return False
+
+    # Source metadata operations
+
+    def save_source_metadata(self, metadata: SourceMetadata) -> bool:
+        """
+        Save source metadata/statistics.
+
+        Args:
+            metadata: SourceMetadata object
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                data = metadata.to_dict()
+
+                cursor.execute("""
+                    INSERT OR REPLACE INTO source_metadata
+                    (source_id, last_fetch_attempt, last_fetch_success, last_item_count,
+                     total_items_fetched, error_count, consecutive_errors, last_error, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    data['source_id'], data['last_fetch_attempt'], data['last_fetch_success'],
+                    data['last_item_count'], data['total_items_fetched'], data['error_count'],
+                    data['consecutive_errors'], data['last_error']
+                ))
+
+                conn.commit()
+                return True
+        except Exception as e:
+            self.logger.error(f"Error saving source metadata for {metadata.source_id}: {e}")
+            return False
+
+    def get_source_metadata(self, source_id: str) -> Optional[SourceMetadata]:
+        """
+        Retrieve source metadata.
+
+        Args:
+            source_id: Source ID (name)
+
+        Returns:
+             SourceMetadata object or None
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM source_metadata WHERE source_id = ?", (source_id,))
+                row = cursor.fetchone()
+
+                if row:
+                    return SourceMetadata.from_dict(dict(row))
+                return None
+        except Exception as e:
+            self.logger.error(f"Error retrieving source metadata for {source_id}: {e}")
+            return None
 
     # Plugin metadata operations
 

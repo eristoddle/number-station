@@ -33,14 +33,14 @@ This implementation plan breaks down the Number Station dashboard into discrete,
     - **Property 3: Configuration Round-Trip Persistence**
     - **Validates: Requirements 1.4, 10.1, 10.2, 10.3, 10.4**
 
-- [ ] 2. Implement plugin architecture foundation
-  - [ ] 2.1 Create plugin base classes and interfaces
+- [x] 2. Implement plugin architecture foundation
+  - [x] 2.1 Create plugin base classes and interfaces
     - Define SourcePlugin, FilterPlugin, and ThemePlugin abstract base classes
     - Implement plugin metadata structure and validation
     - Create plugin registry system with discovery mechanisms
     - _Requirements: 6.4, 6.5, 6.6, 7.3, 7.4, 7.5_
 
-  - [ ] 2.2 Implement plugin manager with lifecycle support
+  - [x] 2.2 Implement plugin manager with lifecycle support
     - Create PluginManager class with load/unload/enable/disable functionality
     - Implement plugin lifecycle management (initialize, start, stop, cleanup)
     - Add plugin compatibility validation and error isolation
@@ -64,41 +64,41 @@ This implementation plan breaks down the Number Station dashboard into discrete,
     - **Property 25: Plugin Fault Tolerance**
     - **Validates: Requirements 6.7**
 
-- [ ] 3. Checkpoint - Core infrastructure validation
+- [x] 3. Checkpoint - Core infrastructure validation
   - Ensure all tests pass, verify plugin system loads correctly, ask the user if questions arise.
 
 - [ ] 4. Implement RSS and web scraping functionality
-  - [ ] 4.1 Create RSS plugin with feedparser integration
+  - [x] 4.1 Create RSS plugin with feedparser integration
     - Implement RSSPlugin class extending SourcePlugin
     - Add RSS feed validation, subscription, and content fetching
     - Implement configurable fetch intervals and exponential backoff retry
     - _Requirements: 3.1, 3.2, 3.4, 3.5_
 
-  - [ ] 4.2 Write property test for RSS feed validation
+  - [x] 4.2 Write property test for RSS feed validation
     - **Property 9: RSS Feed Validation**
     - **Validates: Requirements 3.1**
 
-  - [ ] 4.3 Write property test for exponential backoff retry pattern
+  - [x] 4.3 Write property test for exponential backoff retry pattern
     - **Property 13: Exponential Backoff Retry Pattern**
     - **Validates: Requirements 3.5**
 
-  - [ ] 4.4 Implement web scraping functionality
+  - [x] 4.4 Implement web scraping functionality
     - Add website scraping with configurable CSS selectors
     - Implement content extraction and normalization
     - Add scraping configuration validation and testing
     - _Requirements: 3.3, 5.3, 5.5_
 
-  - [ ] 4.5 Write property test for web scraping selector compliance
+  - [x] 4.5 Write property test for web scraping selector compliance
     - **Property 11: Web Scraping Selector Compliance**
     - **Validates: Requirements 3.3**
 
-  - [ ] 4.6 Add feed metadata storage and management
+  - [x] 4.6 Add feed metadata storage and management
     - Implement feed metadata tracking (last update, item count)
     - Add feed health monitoring and diagnostic reporting
     - Create custom source management interface
     - _Requirements: 3.6, 5.4, 5.6_
 
-  - [ ] 4.7 Write property test for feed metadata accuracy
+  - [x] 4.7 Write property test for feed metadata accuracy
     - **Property 14: Feed Metadata Accuracy**
     - **Validates: Requirements 3.6**
 

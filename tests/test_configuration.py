@@ -59,7 +59,25 @@ class TestConfigurationManager:
         # Mock database connection
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [("rss",), ("twitter",)]
+
+        def execute_side_effect(query, args=None):
+            if "DISTINCT source_type" in query:
+                mock_cursor.fetchall.return_value = [("rss",)]
+            elif "SELECT *" in query and "source_configurations" in query:
+                # Return a valid source config as a dict (which works with dict(row))
+                mock_cursor.fetchall.return_value = [{
+                    "name": "test_rss",
+                    "source_type": "rss",
+                    "url": "https://example.com/feed.xml",
+                    "fetch_interval": 300,
+                    "tags": "[]",
+                    "config": "{}"
+                }]
+            elif "plugin_configs" in query: # For reset or specific plugin queries
+                mock_cursor.fetchall.return_value = []
+            return mock_cursor
+
+        mock_cursor.execute.side_effect = execute_side_effect
         mock_conn.cursor.return_value = mock_cursor
         mock_conn.__enter__ = Mock(return_value=mock_conn)
         mock_conn.__exit__ = Mock(return_value=None)
