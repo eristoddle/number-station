@@ -740,16 +740,21 @@ class PluginRegistry:
             bool: True if compatible, False otherwise
         """
         # Check plugin type is valid
-        valid_types = ['source', 'filter', 'theme']
+        valid_types = ['source', 'filter', 'theme', 'ai']
         if metadata.plugin_type not in valid_types:
             self.logger.error(f"Invalid plugin type: {metadata.plugin_type}")
             return False
 
-        # Check dependencies (basic check - could be enhanced)
+        # Check dependencies (can be either other plugins or Python packages)
         for dependency in metadata.dependencies:
-            if dependency not in self._plugins and dependency not in self._loaded_plugins:
-                self.logger.warning(f"Plugin dependency not available: {dependency}")
-                # For now, just warn - could be made stricter
+            # Check if it's a registered/loaded plugin
+            is_plugin = dependency in self._plugins or dependency in self._loaded_plugins
+
+            # Check if it's a loadable Python module
+            is_module = importlib.util.find_spec(dependency) is not None
+
+            if not is_plugin and not is_module:
+                 self.logger.warning(f"Plugin dependency not available: {dependency}")
 
         return True
 
