@@ -70,7 +70,6 @@ def render_settings_page(db: DatabaseManager, plugin_manager: PluginManager):
                 st.write(healthy)
             with col3:
                 # Toggle enabled
-                # (Actual plugin manager has enable/disable methods)
                 is_enabled = info['enabled']
                 if st.button("Disable" if is_enabled else "Enable", key=f"btn_{name}"):
                     if is_enabled:
@@ -78,6 +77,46 @@ def render_settings_page(db: DatabaseManager, plugin_manager: PluginManager):
                     else:
                          plugin_manager.enable_plugin(name)
                     st.rerun()
+
+            # Plugin Configuration Form
+            if info['metadata'] and info['metadata'].get('config_schema'):
+                with st.expander(f"Configure {name}"):
+                    with st.form(key=f"form_{name}"):
+                        new_config = {}
+                        current_plugin_config = db.get_plugin_config(name) or {}
+                        # current_plugin_config is {'config': {...}, 'enabled': ...}
+                        # But db.get_plugin_config returns the dict from DB directly?
+                        # Let's check models. actually it returns a dict.
+
+                        # Use a simpler approach to get current values
+                        config_values = current_plugin_config.get('config', {}) if isinstance(current_plugin_config, dict) else {}
+
+                        schema = info['metadata']['config_schema']
+                        for field, desc in schema.items():
+                            val = config_values.get(field, "")
+                            if "integer" in desc.lower():
+                                new_config[field] = st.number_input(f"{field} ({desc})", value=int(val) if val else 0)
+                            else:
+                                new_config[field] = st.text_input(f"{field} ({desc})", value=str(val))
+
+                        if st.form_submit_button("Save Config"):
+                            if plugin_manager.configure_plugin(name, new_config):
+                                st.success("Config saved!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to save config.")
+
+                    # Manual trigger for specific plugins
+                    if "DropboxSyncPlugin" in name and info['enabled'] and info['loaded']:
+                        if st.button("🔄 Sync to Dropbox Now", key=f"sync_{name}"):
+                            plugin_instance = plugin_manager.get_plugin(name)
+                            if plugin_instance and hasattr(plugin_instance, 'sync_now'):
+                                with st.spinner("Syncing..."):
+                                    try:
+                                        plugin_instance.sync_now()
+                                        st.success("Sync completed!")
+                                    except Exception as e:
+                                        st.error(f"Sync failed: {e}")
 
     with tabs[2]:
         st.subheader("Export/Import Configuration")

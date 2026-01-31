@@ -510,6 +510,37 @@ class AIPlugin(ABC):
     @property
     def enabled(self) -> bool: return self._enabled
 
+class ServicePlugin(ABC):
+    """
+    Abstract base class for background service plugins.
+    Used for long-running tasks like synchronization, maintenance, or monitoring.
+    """
+
+    def __init__(self):
+        self.logger = logging.getLogger(f"{self.__module__}.{self.__class__.__name__}")
+        self._config: Dict[str, Any] = {}
+        self._enabled: bool = True
+
+    @property
+    @abstractmethod
+    def metadata(self) -> PluginMetadata: pass
+
+    @abstractmethod
+    def validate_config(self, config: Dict[str, Any]) -> bool: pass
+
+    @abstractmethod
+    def configure(self, config: Dict[str, Any]) -> bool: pass
+
+    def initialize(self) -> bool: return True
+    def start(self) -> bool: return True
+    def stop(self) -> bool: return True
+    def cleanup(self) -> bool: return True
+
+    @property
+    def config(self) -> Dict[str, Any]: return self._config.copy()
+    @property
+    def enabled(self) -> bool: return self._enabled
+
 class PluginRegistry:
     """
     Plugin registry system with discovery mechanisms.
@@ -598,7 +629,8 @@ class PluginRegistry:
             if (issubclass(obj, SourcePlugin) or
                 issubclass(obj, FilterPlugin) or
                 issubclass(obj, ThemePlugin) or
-                issubclass(obj, AIPlugin)) and obj not in [SourcePlugin, FilterPlugin, ThemePlugin, AIPlugin]:
+                issubclass(obj, AIPlugin) or
+                issubclass(obj, ServicePlugin)) and obj not in [SourcePlugin, FilterPlugin, ThemePlugin, AIPlugin, ServicePlugin]:
                 plugin_classes.append(obj)
 
         return plugin_classes
@@ -643,7 +675,8 @@ class PluginRegistry:
         if not (issubclass(plugin_class, SourcePlugin) or
                 issubclass(plugin_class, FilterPlugin) or
                 issubclass(plugin_class, ThemePlugin) or
-                issubclass(plugin_class, AIPlugin)):
+                issubclass(plugin_class, AIPlugin) or
+                issubclass(plugin_class, ServicePlugin)):
             return False
 
         # Check required methods are implemented
@@ -740,7 +773,7 @@ class PluginRegistry:
             bool: True if compatible, False otherwise
         """
         # Check plugin type is valid
-        valid_types = ['source', 'filter', 'theme', 'ai']
+        valid_types = ['source', 'filter', 'theme', 'ai', 'service']
         if metadata.plugin_type not in valid_types:
             self.logger.error(f"Invalid plugin type: {metadata.plugin_type}")
             return False

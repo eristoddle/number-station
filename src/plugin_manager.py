@@ -354,6 +354,15 @@ class PluginManager:
         """
         return self.registry.get_plugins_by_type('theme')
 
+    def get_service_plugins(self) -> List[ServicePlugin]:
+        """
+        Get all enabled service plugins.
+
+        Returns:
+            List of enabled ServicePlugin instances
+        """
+        return self.registry.get_plugins_by_type('service')
+
     def get_plugin_status(self) -> Dict[str, Dict[str, Any]]:
         """
         Get status information for all plugins.
