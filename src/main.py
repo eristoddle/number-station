@@ -22,6 +22,7 @@ from src.plugin_manager import PluginManager
 from src.aggregator import ContentAggregator
 from src.ui.stream_mode import render_stream_mode
 from src.ui.board_mode import render_board_mode
+from src.ui.settings import render_settings_page
 from src.ui.components import render_sidebar_status
 
 # Initialize core systems (cached)
@@ -62,7 +63,7 @@ def main():
         prefs = db.get_user_preferences()
         st.session_state.ui_mode = prefs.ui_mode
 
-    # Manual Fetch Trigger
+    # Sidebar: Actions, Mode, Theme
     with st.sidebar:
         st.header("Actions")
         if st.button("🔄 Refresh Content"):
@@ -71,39 +72,58 @@ def main():
                 total_new = sum(results.values())
                 if total_new > 0:
                     st.success(f"Fetched {total_new} new items!")
-                    time.sleep(1) # Show success message briefly
+                    time.sleep(1)
                     st.rerun()
                 else:
                     st.info("No new content found.")
 
-        # Mode Switcher
-        mode = st.radio(
-            "View Mode",
-            ["Stream", "Board"],
-            index=0 if st.session_state.ui_mode == "stream" else 1
+        st.divider()
+        st.header("Navigation")
+
+        # View Selection
+        view_tabs = ["Stream", "Board", "Settings"]
+        # Determine current index based on session state or URL?
+        # Streamlit radio doesn't easily 'sync' with my ui_mode if I change it elsewhere.
+        # But here it's the primary driver.
+        current_view = st.session_state.get('current_view', "Stream")
+        view = st.radio(
+            "Go to",
+            view_tabs,
+            index=view_tabs.index(current_view) if current_view in view_tabs else 0
         )
 
-        # Update state if changed
-        selected_mode = mode.lower()
-        if selected_mode != st.session_state.ui_mode:
-            st.session_state.ui_mode = selected_mode
-            # Save preference?
-            # Yes, per requirement "Implement session state management for UI mode switching"
-            # It implies persistence? UserPrefs stores it.
-            # Ideally we update UserPrefs DB too, or just session.
-            # Let's simple session for now, user manually saves prefs in settings page.
+        if view != current_view:
+            st.session_state.current_view = view
+            if view in ["Stream", "Board"]:
+                 st.session_state.ui_mode = view.lower()
             st.rerun()
+
+        # Theme Switcher
+        themes = plugin_manager.get_theme_plugins()
+        theme_names = [t.metadata.name for t in themes]
+        if not theme_names:
+            theme_names = ["Default"]
+
+        selected_theme_name = st.selectbox("UI Theme", theme_names)
+
+        # Apply CSS for the selected theme
+        active_theme = next((t for t in themes if t.metadata.name == selected_theme_name), None)
+        if active_theme:
+            st.markdown(f"<style>{active_theme.get_css()}</style>", unsafe_allow_html=True)
 
         st.divider()
         render_sidebar_status(plugin_manager, db)
 
     # Render Main View
-    if st.session_state.ui_mode == "stream":
+    view = st.session_state.get('current_view', "Stream")
+    if view == "Stream":
         render_stream_mode(db)
-    elif st.session_state.ui_mode == "board":
+    elif view == "Board":
         render_board_mode(db)
+    elif view == "Settings":
+        render_settings_page(db, plugin_manager)
     else:
-        st.error(f"Unknown mode: {st.session_state.ui_mode}")
+        st.error(f"Unknown view: {view}")
 
 if __name__ == "__main__":
     main()

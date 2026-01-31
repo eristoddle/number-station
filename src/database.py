@@ -58,6 +58,8 @@ class DatabaseManager:
                     tags TEXT, -- JSON array
                     media_urls TEXT, -- JSON array
                     metadata TEXT, -- JSON object
+                    relevance_score REAL DEFAULT 0.0,
+                    embedding TEXT, -- JSON array
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -182,12 +184,12 @@ class DatabaseManager:
 
                 cursor.execute("""
                     INSERT OR REPLACE INTO content_items
-                    (id, source, source_type, title, content, author, timestamp, url, tags, media_urls, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, source, source_type, title, content, author, timestamp, url, tags, media_urls, metadata, relevance_score, embedding)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     data['id'], data['source'], data['source_type'], data['title'],
                     data['content'], data['author'], data['timestamp'], data['url'],
-                    data['tags'], data['media_urls'], data['metadata']
+                    data['tags'], data['media_urls'], data['metadata'], data['relevance_score'], data['embedding']
                 ))
 
                 conn.commit()

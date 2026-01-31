@@ -41,6 +41,10 @@ class ContentItem:
     media_urls: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    # AI/ML Compatibility Fields
+    relevance_score: float = 0.0
+    embedding: List[float] = field(default_factory=list)
+
     def __post_init__(self):
         """Validate and normalize fields after initialization."""
         # Ensure required fields are not empty
@@ -76,7 +80,9 @@ class ContentItem:
             'url': self.url,
             'tags': json.dumps(self.tags),
             'media_urls': json.dumps(self.media_urls),
-            'metadata': json.dumps(self.metadata)
+            'metadata': json.dumps(self.metadata),
+            'relevance_score': self.relevance_score,
+            'embedding': json.dumps(self.embedding)
         }
 
     @classmethod
@@ -100,6 +106,10 @@ class ContentItem:
         if isinstance(metadata, str):
             metadata = json.loads(metadata)
 
+        embedding = data.get('embedding', '[]')
+        if isinstance(embedding, str):
+            embedding = json.loads(embedding)
+
         return cls(
             id=data['id'],
             source=data['source'],
@@ -111,7 +121,9 @@ class ContentItem:
             url=data['url'],
             tags=tags,
             media_urls=media_urls,
-            metadata=metadata
+            metadata=metadata,
+            relevance_score=data.get('relevance_score', 0.0),
+            embedding=embedding
         )
 
 

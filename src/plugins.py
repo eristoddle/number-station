@@ -467,6 +467,49 @@ class ThemePlugin(ABC):
         return self._enabled
 
 
+class AIPlugin(ABC):
+    """
+    Abstract base class for AI/ML plugins.
+    Used for content ranking, summarization, and automated actions.
+
+    Validates Requirements 11.1, 11.2, 11.3, 11.5.
+    """
+
+    def __init__(self):
+        self.logger = logging.getLogger(f"{self.__module__}.{self.__class__.__name__}")
+        self._config: Dict[str, Any] = {}
+        self._enabled: bool = True
+
+    @property
+    @abstractmethod
+    def metadata(self) -> PluginMetadata: pass
+
+    @abstractmethod
+    def validate_config(self, config: Dict[str, Any]) -> bool: pass
+
+    @abstractmethod
+    def configure(self, config: Dict[str, Any]) -> bool: pass
+
+    @abstractmethod
+    def rank_items(self, items: List[ContentItem]) -> List[ContentItem]:
+        """Rank or score items using AI models."""
+        pass
+
+    @abstractmethod
+    def process_item(self, item: ContentItem) -> ContentItem:
+        """Apply AI transformations to a single item (e.g. summarization)."""
+        pass
+
+    def initialize(self) -> bool: return True
+    def start(self) -> bool: return True
+    def stop(self) -> bool: return True
+    def cleanup(self) -> bool: return True
+
+    @property
+    def config(self) -> Dict[str, Any]: return self._config.copy()
+    @property
+    def enabled(self) -> bool: return self._enabled
+
 class PluginRegistry:
     """
     Plugin registry system with discovery mechanisms.
@@ -554,7 +597,8 @@ class PluginRegistry:
             # Check if class inherits from plugin base classes
             if (issubclass(obj, SourcePlugin) or
                 issubclass(obj, FilterPlugin) or
-                issubclass(obj, ThemePlugin)) and obj not in [SourcePlugin, FilterPlugin, ThemePlugin]:
+                issubclass(obj, ThemePlugin) or
+                issubclass(obj, AIPlugin)) and obj not in [SourcePlugin, FilterPlugin, ThemePlugin, AIPlugin]:
                 plugin_classes.append(obj)
 
         return plugin_classes
@@ -598,7 +642,8 @@ class PluginRegistry:
         # Check if it's a valid plugin type
         if not (issubclass(plugin_class, SourcePlugin) or
                 issubclass(plugin_class, FilterPlugin) or
-                issubclass(plugin_class, ThemePlugin)):
+                issubclass(plugin_class, ThemePlugin) or
+                issubclass(plugin_class, AIPlugin)):
             return False
 
         # Check required methods are implemented
@@ -610,6 +655,8 @@ class PluginRegistry:
             required_methods.extend(['filter_content'])
         elif issubclass(plugin_class, ThemePlugin):
             required_methods.extend(['apply_theme', 'get_css', 'supports_mode'])
+        elif issubclass(plugin_class, AIPlugin):
+            required_methods.extend(['rank_items', 'process_item'])
 
         for method_name in required_methods:
             if not hasattr(plugin_class, method_name):
