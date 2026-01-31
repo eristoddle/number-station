@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "database_path": "data/number_station.db",
+  "log_level": "INFO",
+  "max_content_age_days": 30,
+  "default_fetch_interval": 300,
+  "max_concurrent_fetches": 5,
+  "rate_limit_requests_per_minute": 60,
+  "ui_settings": {
+    "default_items_per_page": 50,
+    "max_items_per_page": 200,
+    "enable_auto_refresh": true,
+    "refresh_interval_seconds": 30
+  },
+  "security": {
+    "enable_content_sanitization": true,
+    "allowed_media_types": [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp"
+    ],
+    "max_content_length": 1000000
+  }
+}

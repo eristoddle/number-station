@@ -1,0 +1,10 @@
+{
+  "ui_mode": "stream",
+  "theme": "default",
+  "update_interval": 300,
+  "items_per_page": 50,
+  "auto_refresh": true,
+  "show_media": true,
+  "show_author": true,
+  "show_timestamp": true
+}
