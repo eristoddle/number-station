@@ -134,27 +134,27 @@ This implementation plan breaks down the Number Station dashboard into discrete,
     - **Validates: Requirements 4.7**
 
 - [ ] 6. Implement content aggregation and management
-  - [ ] 6.1 Create content aggregator with scheduling
+  - [x] 6.1 Create content aggregator with scheduling
     - Implement ContentAggregator class to coordinate all source plugins
     - Add configurable content fetching intervals and scheduling
     - Implement content deduplication and caching mechanisms
     - _Requirements: 3.2, 9.2_
 
-  - [ ] 6.2 Write property test for content fetch scheduling
+  - [x] 6.2 Write property test for content fetch scheduling
     - **Property 10: Content Fetch Scheduling**
     - **Validates: Requirements 3.2**
 
-  - [ ] 6.3 Implement content storage and retrieval
+  - [x] 6.3 Implement content storage and retrieval
     - Add content persistence to SQLite database
     - Implement content querying and filtering capabilities
     - Add content cleanup and retention policies
     - _Requirements: 9.5, 9.6_
 
-  - [ ] 6.4 Write property test for source URL preservation
+  - [x] 6.4 Write property test for source URL preservation
     - **Property 33: Source URL Preservation**
     - **Validates: Requirements 9.5**
 
-  - [ ] 6.5 Write property test for missing field graceful handling
+  - [x] 6.5 Write property test for missing field graceful handling
     - **Property 34: Missing Field Graceful Handling**
     - **Validates: Requirements 9.6**
 
