@@ -91,13 +91,14 @@ def render_settings_page(db: DatabaseManager, plugin_manager: PluginManager):
                         # Use a simpler approach to get current values
                         config_values = current_plugin_config.get('config', {}) if isinstance(current_plugin_config, dict) else {}
 
-                        schema = info['metadata']['config_schema']
-                        for field, desc in schema.items():
-                            val = config_values.get(field, "")
-                            if "integer" in desc.lower():
-                                new_config[field] = st.number_input(f"{field} ({desc})", value=int(val) if val else 0)
-                            else:
-                                new_config[field] = st.text_input(f"{field} ({desc})", value=str(val))
+                        schema = info['metadata'].get('config_schema', {})
+                        if isinstance(schema, dict):
+                            for field, desc in schema.items():
+                                val = config_values.get(field, "")
+                                if "integer" in desc.lower():
+                                    new_config[field] = st.number_input(f"{field} ({desc})", value=int(val) if val else 0)
+                                else:
+                                    new_config[field] = st.text_input(f"{field} ({desc})", value=str(val))
 
                         if st.form_submit_button("Save Config"):
                             if plugin_manager.configure_plugin(name, new_config):
